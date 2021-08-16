@@ -218,58 +218,59 @@ private[flink] trait TypeAnalyzer[C <: Context] { this: MacroContextHolder[C]
     }
 
     private def analyzeCaseClass(id: Int, tpe: Type): UDTDescriptor = {
-
-      tpe.baseClasses exists { bc => !(bc == tpe.typeSymbol) && bc.asClass.isCaseClass } match {
-
-        case true =>
-          UnsupportedDescriptor(id, tpe, Seq("Case-to-case inheritance is not supported."))
-
-        case false =>
-
-          val ctors = tpe.declarations collect {
-            case m: MethodSymbol if m.isPrimaryConstructor => m
-          }
-
-          ctors match {
-            case c1 :: c2 :: _ =>
-              UnsupportedDescriptor(
-                id,
-                tpe,
-                Seq("Multiple constructors found, this is not supported."))
-            case ctor :: Nil =>
-              val caseFields = ctor.paramss.flatten.map {
-                sym =>
-                  {
-                    val methodSym = tpe.member(sym.name).asMethod
-                    val getter = methodSym.getter
-                    val setter = methodSym.setter
-                    val returnType = methodSym.returnType.asSeenFrom(tpe, tpe.typeSymbol)
-                    (getter, setter, returnType)
-                  }
-              }
-              val fields = caseFields map {
-                case (fgetter, fsetter, fTpe) =>
-                  FieldDescriptor(fgetter.name.toString.trim, fgetter, fsetter, fTpe, analyze(fTpe))
-              }
-              val mutable = enableMutableUDTs && (fields forall { f => f.setter != NoSymbol })
-              if (mutable) {
-                mutableTypes.add(tpe)
-              }
-              fields filter { _.desc.isInstanceOf[UnsupportedDescriptor] } match {
-                case errs @ _ :: _ =>
-                  val msgs = errs flatMap { f =>
-                    (f: @unchecked) match {
-                      case FieldDescriptor(
-                        fName, _, _, _, UnsupportedDescriptor(_, fTpe, errors)) =>
-                        errors map { err => "Field " + fName + ": " + fTpe + " - " + err }
-                    }
-                  }
-                  UnsupportedDescriptor(id, tpe, msgs)
-
-                case Nil => CaseClassDescriptor(id, tpe, mutable, ctor, fields.toSeq)
-              }
-          }
-      }
+      GenericClassDescriptor(id, tpe)
+//
+//      tpe.baseClasses exists { bc => !(bc == tpe.typeSymbol) && bc.asClass.isCaseClass } match {
+//
+//        case true =>
+//          UnsupportedDescriptor(id, tpe, Seq("Case-to-case inheritance is not supported."))
+//
+//        case false =>
+//
+//          val ctors = tpe.declarations collect {
+//            case m: MethodSymbol if m.isPrimaryConstructor => m
+//          }
+//
+//          ctors match {
+//            case c1 :: c2 :: _ =>
+//              UnsupportedDescriptor(
+//                id,
+//                tpe,
+//                Seq("Multiple constructors found, this is not supported."))
+//            case ctor :: Nil =>
+//              val caseFields = ctor.paramss.flatten.map {
+//                sym =>
+//                  {
+//                    val methodSym = tpe.member(sym.name).asMethod
+//                    val getter = methodSym.getter
+//                    val setter = methodSym.setter
+//                    val returnType = methodSym.returnType.asSeenFrom(tpe, tpe.typeSymbol)
+//                    (getter, setter, returnType)
+//                  }
+//              }
+//              val fields = caseFields map {
+//                case (fgetter, fsetter, fTpe) =>
+//                  FieldDescriptor(fgetter.name.toString.trim, fgetter, fsetter, fTpe, analyze(fTpe))
+//              }
+//              val mutable = enableMutableUDTs && (fields forall { f => f.setter != NoSymbol })
+//              if (mutable) {
+//                mutableTypes.add(tpe)
+//              }
+//              fields filter { _.desc.isInstanceOf[UnsupportedDescriptor] } match {
+//                case errs @ _ :: _ =>
+//                  val msgs = errs flatMap { f =>
+//                    (f: @unchecked) match {
+//                      case FieldDescriptor(
+//                        fName, _, _, _, UnsupportedDescriptor(_, fTpe, errors)) =>
+//                        errors map { err => "Field " + fName + ": " + fTpe + " - " + err }
+//                    }
+//                  }
+//                  UnsupportedDescriptor(id, tpe, msgs)
+//
+//                case Nil => CaseClassDescriptor(id, tpe, mutable, ctor, fields.toSeq)
+//              }
+//          }
+//      }
     }
 
     private object PrimitiveType {
